@@ -1,0 +1,99 @@
+﻿<Window x:Class="Wiltoga.Meppy.Configuration"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Wiltoga.Meppy"
+        mc:Ignorable="d"
+        Title="Meppy Configuration"
+        UseLayoutRounding="True"
+        Icon="/icon.ico"
+        Height="400"
+        Width="300"
+        MinHeight="200"
+        MinWidth="200"
+        IsVisibleChanged="Window_IsVisibleChanged">
+    <Window.DataContext>
+        <local:ConfigurationViewModel />
+    </Window.DataContext>
+    <DockPanel>
+        <Popup
+            x:Name="popup"
+            Placement="Absolute"
+            AllowsTransparency="True"
+            PopupAnimation="Fade">
+            <Border
+                IsHitTestVisible="False"
+                BorderBrush="Red"
+                BorderThickness="5" />
+        </Popup>
+        <StackPanel
+            Orientation="Horizontal"
+            DockPanel.Dock="Top">
+            <TextBlock
+                VerticalAlignment="Center"
+                Margin="5">
+                Rules :
+            </TextBlock>
+            <Button
+                Click="AddExecutableButton_Click"
+                VerticalAlignment="Center"
+                Margin="35,5"
+                Padding="5,2">
+                Add executable
+            </Button>
+        </StackPanel>
+        <DataGrid
+            CanUserAddRows="False"
+            SelectionMode="Single"
+            AlternatingRowBackground="#eee"
+            AlternationCount="2"
+            AutoGenerateColumns="False"
+            HeadersVisibility="Column"
+            CanUserDeleteRows="False"
+            ItemsSource="{Binding Path=Rules}">
+            <DataGrid.CellStyle>
+                <Style
+                    TargetType="DataGridCell">
+                    <Setter
+                        Property="Focusable"
+                        Value="False" />
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <DataGridTemplateColumn
+                    Header="Active"
+                    IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate
+                            DataType="{x:Type local:ConfigurationRule}">
+                            <CheckBox
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding Path=Active, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn
+                    IsReadOnly="True"
+                    Header="Name"
+                    Binding="{Binding Path=Name}" />
+                <DataGridTemplateColumn
+                    IsReadOnly="True"
+                    Header="Show">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate
+                            DataType="{x:Type local:ConfigurationRule}">
+                            <Button
+                                Click="EyeButton_Click">
+                                <Image
+                                    Stretch="None"
+                                    Source="/eye.png" />
+                            </Button>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>
