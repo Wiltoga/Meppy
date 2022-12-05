@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace Wiltoga.Meppy
@@ -58,6 +59,16 @@ namespace Wiltoga.Meppy
 
     public class State
     {
+        [JsonIgnore]
+        public State Copy => new State
+        {
+            Height = Height,
+            Left = Left,
+            Top = Top,
+            Width = Width,
+            WindowState = WindowState
+        };
+
         public int Height { get; set; }
         public int Left { get; set; }
         public int Top { get; set; }

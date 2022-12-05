@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using static System.Windows.Forms.AxHost;
 
 namespace Wiltoga.Meppy
 {
@@ -18,7 +19,7 @@ namespace Wiltoga.Meppy
         public MeppyBackgroundService(ILogger<MeppyBackgroundService> logger)
         {
             Logger = logger;
-            Rules = new List<Rule>();
+            Rules = new();
             Handles = new List<(Rule, Task, CancellationTokenSource)>();
         }
 
@@ -26,36 +27,25 @@ namespace Wiltoga.Meppy
 
         private ILogger Logger { get; }
 
-        private List<Rule> Rules { get; }
+        private List<RuleSet> Rules { get; }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var data = SaveData.LoadRules();
-            Rules.AddRange(data.Rules);
+            Rules.AddRange(data.Rules.Select(rule => new RuleSet(rule, rule.State?.Copy)));
 
             var processWatcher = new ProcessWatcher();
 
             foreach (var rule in Rules)
             {
-                processWatcher.Watch(rule.ProcessName);
+                processWatcher.Watch(rule.Rule.ProcessName);
             }
 
             processWatcher.ProcessStarted += ProcessWatcher_ProcessStarted;
+            processWatcher.NewWindowOpened += ProcessWatcher_NewWindowOpened;
             processWatcher.ProcessStopped += ProcessWatcher_ProcessStopped;
 
             processWatcher.Start(stoppingToken);
-
-            /*var icon = new NotifyIcon
-            {
-                Icon = Properties.Resources.icon,
-                Text = "Meppy",
-                BalloonTipText = "Configure Meppy here !"
-            };
-            icon.Click += Icon_Click;
-            icon.BalloonTipClicked += Icon_Click;
-            icon.Visible = true;
-            if (createdRules)
-                icon.ShowBalloonTip(5000);*/
 
             await processWatcher.ThreadTask;
 
@@ -67,10 +57,64 @@ namespace Wiltoga.Meppy
 
             SaveData.SaveRules(new Data
             {
-                Rules = Rules.ToArray()
+                Rules = Rules.Select(rule => rule.Rule).ToArray()
             });
 
             processWatcher.Dispose();
+        }
+
+        private void OperateWindow(IntPtr hwnd, State state)
+        {
+            //https://learn.microsoft.com/en-us/answers/questions/522265/movewindow-and-setwindowpos-is-moving-window-for-e.html
+            Win32.RECT required_rect = Win32.RECT.FromSizes(state.Left, state.Top, state.Width, state.Height);
+
+            // I have no idea what these values are, thanks to the source post, but it works
+            var wrect = new Win32.RECT();
+            var xrect = new Win32.RECT();
+
+            Win32.GetWindowRect(hwnd, ref wrect);
+            Win32.DwmGetWindowAttribute(hwnd, 9, ref xrect, Marshal.SizeOf(typeof(Win32.RECT)));
+
+            var wtl = new Point(wrect.Left, wrect.Top);
+            var wbr = new Point(wrect.Right, wrect.Bottom);
+
+            var xtl = new Point(xrect.Left, xrect.Top);
+            var xbr = new Point(xrect.Right, xrect.Bottom);
+
+            Win32.PhysicalToLogicalPointForPerMonitorDPI(hwnd, ref xtl);
+            Win32.PhysicalToLogicalPointForPerMonitorDPI(hwnd, ref xbr);
+
+            var adjusted_rect = Win32.RECT.FromSizes(
+               required_rect.Left - (xtl.X - wtl.X),
+               required_rect.Top - (xtl.Y - wtl.Y),
+               required_rect.Width + (xtl.X - wtl.X) + (wbr.X - xbr.X),
+               required_rect.Height + (xtl.Y - wtl.Y) + (wbr.Y - xbr.Y));
+
+            Win32.MoveWindow(hwnd, adjusted_rect.Left, adjusted_rect.Top, adjusted_rect.Width, adjusted_rect.Height, true);
+            Win32.ShowWindow(hwnd, state.WindowState);
+        }
+
+        private void ProcessWatcher_NewWindowOpened(object? sender, NewWindowOpenedEventArgs e)
+        {
+            try
+            {
+                Logger.LogInformation("{ProcessName} opened", e.Process.ProcessName);
+                var ruleSet = Rules.FirstOrDefault(r => r.Rule.ProcessName == e.Process.ProcessName);
+                var rule = ruleSet?.Rule;
+                if (rule is null)
+                    return;
+
+                var hwnd = e.Process.MainWindowHandle;
+                var state = ruleSet?.InitialState;
+                if (state is not null)
+                {
+                    OperateWindow(hwnd, state);
+                }
+            }
+            catch (Exception exc)
+            {
+                Logger.LogError(exc, "Error during window change");
+            }
         }
 
         private void ProcessWatcher_ProcessStarted(object? sender, ProcessStartedEventArgs e)
@@ -78,40 +122,16 @@ namespace Wiltoga.Meppy
             try
             {
                 Logger.LogInformation("{ProcessName} opened", e.Process.ProcessName);
-                var rule = Rules.FirstOrDefault(r => r.ProcessName == e.Process.ProcessName);
+                var ruleSet = Rules.FirstOrDefault(r => r.Rule.ProcessName == e.Process.ProcessName);
+                var rule = ruleSet?.Rule;
                 if (rule is null)
                     return;
 
                 var hwnd = e.Process.MainWindowHandle;
-                if (rule.State is not null)
+                var state = ruleSet?.InitialState;
+                if (state is not null)
                 {
-                    //https://learn.microsoft.com/en-us/answers/questions/522265/movewindow-and-setwindowpos-is-moving-window-for-e.html
-                    Win32.RECT required_rect = Win32.RECT.FromSizes(rule.State.Left, rule.State.Top, rule.State.Width, rule.State.Height);
-
-                    // I have no idea what these values are, thanks to the source post, but it works
-                    var wrect = new Win32.RECT();
-                    var xrect = new Win32.RECT();
-
-                    Win32.GetWindowRect(hwnd, ref wrect);
-                    Win32.DwmGetWindowAttribute(hwnd, 9, ref xrect, Marshal.SizeOf(typeof(Win32.RECT)));
-
-                    var wtl = new Point(wrect.Left, wrect.Top);
-                    var wbr = new Point(wrect.Right, wrect.Bottom);
-
-                    var xtl = new Point(xrect.Left, xrect.Top);
-                    var xbr = new Point(xrect.Right, xrect.Bottom);
-
-                    Win32.PhysicalToLogicalPointForPerMonitorDPI(hwnd, ref xtl);
-                    Win32.PhysicalToLogicalPointForPerMonitorDPI(hwnd, ref xbr);
-
-                    var adjusted_rect = Win32.RECT.FromSizes(
-                       required_rect.Left - (xtl.X - wtl.X),
-                       required_rect.Top - (xtl.Y - wtl.Y),
-                       required_rect.Width + (xtl.X - wtl.X) + (wbr.X - xbr.X),
-                       required_rect.Height + (xtl.Y - wtl.Y) + (wbr.Y - xbr.Y));
-
-                    Win32.MoveWindow(hwnd, adjusted_rect.Left, adjusted_rect.Top, adjusted_rect.Width, adjusted_rect.Height, true);
-                    Win32.ShowWindow(hwnd, rule.State.WindowState);
+                    OperateWindow(hwnd, state);
                 }
 
                 var cancellationTokenSource = new CancellationTokenSource();
@@ -163,34 +183,22 @@ namespace Wiltoga.Meppy
             handle.TokenSource.Cancel();
             Logger.LogInformation("{ProcessName} closed", handle.Rule.ProcessName);
             Handles.Remove(handle);
+            var ruleSet = Rules.FirstOrDefault(rule => handle.Rule == rule.Rule);
+            if (ruleSet is null)
+                return;
+            ruleSet.InitialState = ruleSet.Rule.State;
         }
 
-        /*private void Icon_Click(object? sender, EventArgs e)
+        private class RuleSet
         {
-            config ??= new Configuration();
-            config.Refresh(Rules);
-            config.Show();
-            void Config_IsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+            public RuleSet(Rule rule, State? initialState)
             {
-                if (e.NewValue is false)
-                {
-                    config.IsVisibleChanged -= Config_IsVisibleChanged;
-                    var toRemove = Rules.Where(rule => !config.EnabledRules.Contains(rule.ProcessName, StringComparer.InvariantCultureIgnoreCase));
-                    var toAdd = config.EnabledRules.Where(rule => !Rules.Any(currRule => currRule.ProcessName.Equals(rule, StringComparison.InvariantCultureIgnoreCase)));
-                    foreach (var item in toRemove.ToArray())
-                    {
-                        Rules.Remove(item);
-                    }
-                    foreach (var item in toAdd.ToArray())
-                    {
-                        Rules.Add(new Rule
-                        {
-                            ProcessName = item
-                        });
-                    }
-                }
+                Rule = rule;
+                InitialState = initialState;
             }
-            config.IsVisibleChanged += Config_IsVisibleChanged;
-        }*/
+
+            public State? InitialState { get; set; }
+            public Rule Rule { get; }
+        }
     }
 }

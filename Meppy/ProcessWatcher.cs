@@ -7,6 +7,16 @@ using System.Threading.Tasks;
 
 namespace Wiltoga.Meppy
 {
+    internal class NewWindowOpenedEventArgs : EventArgs
+    {
+        public NewWindowOpenedEventArgs(Process process)
+        {
+            Process = process;
+        }
+
+        public Process Process { get; }
+    }
+
     internal class ProcessStartedEventArgs : EventArgs
     {
         public ProcessStartedEventArgs(Process process)
@@ -53,6 +63,8 @@ namespace Wiltoga.Meppy
         {
             Dispose(false);
         }
+
+        public event EventHandler<NewWindowOpenedEventArgs>? NewWindowOpened;
 
         public event EventHandler<ProcessStartedEventArgs>? ProcessStarted;
 
@@ -124,7 +136,7 @@ namespace Wiltoga.Meppy
             lock (threadLock)
             {
                 if (!TargetProcesses.Any(proc => proc.Name == name))
-                    TargetProcesses.Add(new ProcessInfo(name, null));
+                    TargetProcesses.Add(new ProcessInfo(name, null, IntPtr.Zero));
             }
         }
 
@@ -174,10 +186,19 @@ namespace Wiltoga.Meppy
                                 if (target.Process is null)
                                 {
                                     ProcessStarted?.Invoke(this, new ProcessStartedEventArgs(process));
+                                    target.Handle = process.MainWindowHandle;
                                     target.Process = process;
                                 }
                                 else
-                                    process.Dispose();
+                                {
+                                    if (process.MainWindowHandle != target.Handle)
+                                    {
+                                        NewWindowOpened?.Invoke(this, new NewWindowOpenedEventArgs(process));
+                                        target.Handle = process.MainWindowHandle;
+                                    }
+                                    target.Process.Dispose();
+                                    target.Process = process;
+                                }
                                 foundProcesses.Add(target.Name);
                             }
                         }
@@ -219,12 +240,14 @@ namespace Wiltoga.Meppy
 
         private class ProcessInfo
         {
-            public ProcessInfo(string name, Process? process)
+            public ProcessInfo(string name, Process? process, IntPtr handle)
             {
                 Name = name;
                 Process = process;
+                Handle = handle;
             }
 
+            public IntPtr Handle { get; set; }
             public string Name { get; }
             public Process? Process { get; set; }
         }
