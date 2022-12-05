@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <RootNamespace>Wiltoga.Meppy</RootNamespace>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+	  <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="eye.png" />
+    <None Remove="icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DynamicData" Version="7.12.11" />
+    <PackageReference Include="ReactiveUI.Fody" Version="18.4.1" />
+    <PackageReference Include="ReactiveUI.WPF" Version="18.4.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Commons\Commons.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="eye.png" />
+    <Resource Include="icon.ico" />
+  </ItemGroup>
+
+</Project>

@@ -2,16 +2,16 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -25,10 +25,11 @@ namespace Wiltoga.Meppy
     public partial class Configuration : Window
     {
         private CancellationTokenSource? popupCancellation;
-
+        private Outliner? outliner;
         public Configuration()
         {
             InitializeComponent();
+            ViewModel.RefreshProcesses();
             EnabledRules = Array.Empty<string>();
         }
 
@@ -39,9 +40,8 @@ namespace Wiltoga.Meppy
 
         protected override void OnClosing(CancelEventArgs e)
         {
-            e.Cancel = true;
             EnabledRules = ViewModel.Rules.Where(rule => rule.Active).Select(rule => rule.Name).ToArray();
-            Hide();
+            outliner?.Close();
         }
 
         private void AddExecutableButton_Click(object sender, RoutedEventArgs e)
@@ -56,11 +56,11 @@ namespace Wiltoga.Meppy
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 ViewModel.CacheSource.AddOrUpdate(dialog.FileNames
-                    .Select(file => Path.GetFileNameWithoutExtension(file))
-                    .Where(file => !ViewModel.CacheSource.Lookup(file).HasValue)
-                    .Select(file => new ConfigurationRule(file)
+                    .Where(file => !ViewModel.CacheSource.Lookup(Path.GetFileNameWithoutExtension(file)).HasValue)
+                    .Select(file => new ConfigurationRule(Path.GetFileNameWithoutExtension(file))
                     {
-                        Active = true
+                        Active = true,
+                        Filename = file
                     }));
             }
         }
@@ -111,11 +111,16 @@ namespace Wiltoga.Meppy
             }
             else
                 return;
-            popup.HorizontalOffset = position.Left;
-            popup.VerticalOffset = position.Top;
-            popup.Width = position.Width;
-            popup.Height = position.Height;
-            popup.IsOpen = true;
+            outliner ??= new Outliner();
+
+            outliner.Left = position.Left;
+            outliner.Top = position.Top;
+            outliner.Width = position.Width;
+            outliner.Height = position.Height;
+            if (rule.Process is not null && rule.Process.MainWindowHandle != IntPtr.Zero)
+                Win32.SetForegroundWindow(rule.Process.MainWindowHandle);
+            outliner.Show();
+            outliner.Activate();
             popupCancellation = new CancellationTokenSource();
             try
             {
@@ -125,19 +130,8 @@ namespace Wiltoga.Meppy
             {
                 return;
             }
-            popup.IsOpen = false;
+            outliner.Hide();
             popupCancellation = null;
-        }
-
-        private void Window_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
-        {
-            if (e.NewValue is true)
-            {
-                ViewModel.RefreshProcesses();
-            }
-            else
-            {
-            }
         }
     }
 }

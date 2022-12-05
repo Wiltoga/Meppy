@@ -6,25 +6,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Wiltoga.$(MSBuildProjectName.Replace(" ", "_"))</RootNamespace>
-	  <UseWPF>true</UseWPF>
-	  <UseWindowsForms>true</UseWindowsForms>
 	  <ApplicationIcon>icon.ico</ApplicationIcon>
+	  <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="eye.png" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Resource Include="eye.png" />
-    <Resource Include="icon.ico" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="DynamicData" Version="7.12.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="7.0.0" />
-    <PackageReference Include="ReactiveUI" Version="18.4.1" />
-    <PackageReference Include="ReactiveUI.Fody" Version="18.4.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Commons\Commons.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="icon.ico" />
   </ItemGroup>
 
   <ItemGroup>

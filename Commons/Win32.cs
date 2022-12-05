@@ -34,6 +34,9 @@ namespace Wiltoga.Meppy
         [DllImport("user32")]
         public static extern bool PhysicalToLogicalPointForPerMonitorDPI(IntPtr hwnd, ref Point lpRect);
 
+        [DllImport("user32", SetLastError = true)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
         [DllImport("user32")]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool ShowWindow(IntPtr hWnd, ShowWindowCommands nCmdShow);
