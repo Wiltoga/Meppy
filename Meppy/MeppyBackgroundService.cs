@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using DynamicData;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -7,15 +8,16 @@ using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
-using static System.Windows.Forms.AxHost;
+using System.Windows.Automation;
+using System.Windows.Interop;
 
 namespace Wiltoga.Meppy
 {
     internal class MeppyBackgroundService : BackgroundService
     {
+        private Configuration? config;
+
         public MeppyBackgroundService(ILogger<MeppyBackgroundService> logger)
         {
             Logger = logger;
@@ -23,7 +25,7 @@ namespace Wiltoga.Meppy
             Handles = new List<(Rule, Task, CancellationTokenSource)>();
         }
 
-        private List<(Rule Rule, Task Task, CancellationTokenSource TokenSource)> Handles { get; }
+        private List<(Task Task, CancellationTokenSource TokenSource)> Handles { get; }
 
         private ILogger Logger { get; }
 
@@ -61,6 +63,38 @@ namespace Wiltoga.Meppy
             });
 
             processWatcher.Dispose();
+
+            icon.Dispose();
+
+            Application.Exit();
+        }
+
+        private void Icon_Click(object? sender, EventArgs e)
+        {
+            config ??= new Configuration();
+            config.Refresh(Rules);
+            config.Show();
+            void Config_IsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+            {
+                if (e.NewValue is false)
+                {
+                    config.IsVisibleChanged -= Config_IsVisibleChanged;
+                    var toRemove = Rules.Where(rule => !config.EnabledRules.Contains(rule.ProcessName, StringComparer.InvariantCultureIgnoreCase));
+                    var toAdd = config.EnabledRules.Where(rule => !Rules.Any(currRule => currRule.ProcessName.Equals(rule, StringComparison.InvariantCultureIgnoreCase)));
+                    foreach (var item in toRemove.ToArray())
+                    {
+                        Rules.Remove(item);
+                    }
+                    foreach (var item in toAdd.ToArray())
+                    {
+                        Rules.Add(new Rule
+                        {
+                            ProcessName = item
+                        });
+                    }
+                }
+            }
+            config.IsVisibleChanged += Config_IsVisibleChanged;
         }
 
         private void OperateWindow(IntPtr hwnd, State state)
@@ -136,9 +170,23 @@ namespace Wiltoga.Meppy
 
                 var cancellationTokenSource = new CancellationTokenSource();
 
-                (Rule, Task, CancellationTokenSource)? taskHandle = null;
+                var element = AutomationElement.FromHandle(hwnd);
 
-                taskHandle = (rule, Task.Run(() =>
+                (Task, CancellationTokenSource)? taskHandle = null;
+
+                void closedHandler(object sender, EventArgs e2)
+                {
+                    cancellationTokenSource.Cancel();
+                    Logger.LogInformation("{ProcessName} closed", rule.ProcessName);
+                    Automation.RemoveAutomationEventHandler(WindowPattern.WindowClosedEvent, element, closedHandler);
+                    if (taskHandle is not null)
+                        Handles.Remove(taskHandle.Value);
+                }
+
+                Automation.AddAutomationEventHandler(
+                    WindowPattern.WindowClosedEvent, element,
+                    TreeScope.Subtree, closedHandler);
+                taskHandle = (Task.Run(() =>
                 {
                     while (!cancellationTokenSource.IsCancellationRequested)
                     {

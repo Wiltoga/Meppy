@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reactive.Subjects;
-using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -21,30 +20,14 @@ namespace Wiltoga.Meppy
             Name = name;
             Reference = null;
             Process = null;
-            Filename = null;
         }
 
+        [Reactive]
         public bool Active { get; set; }
 
-        public string DisplayName => FriendlyName ?? Name;
-
-        public string? Filename { get; set; }
         public string Name { get; }
-
         public Process? Process { get; set; }
         public Rule? Reference { get; set; }
-
-        private string? FriendlyName
-        {
-            get
-            {
-                var file = Filename ?? Process?.MainModule?.FileName;
-                if (file is null)
-                    return null;
-                var versionInfo = FileVersionInfo.GetVersionInfo(file);
-                return versionInfo.FileDescription ?? null;
-            }
-        }
     }
 
     public class ConfigurationViewModel : ReactiveObject
@@ -54,7 +37,6 @@ namespace Wiltoga.Meppy
             CacheSource = new SourceCache<ConfigurationRule, string>(o => o.Name.ToLowerInvariant());
             CacheSource
                 .Connect()
-                .Filter(rule => rule.Process?.ProcessName != "explorer" && !string.IsNullOrWhiteSpace(rule.DisplayName))
                 .Bind(out var rules)
                 .Subscribe();
 

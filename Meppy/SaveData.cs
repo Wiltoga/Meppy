@@ -9,33 +9,6 @@ using System.Threading.Tasks;
 
 namespace Wiltoga.Meppy
 {
-    public static class SaveData
-    {
-        private static FileInfo SaveFile => new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Meppy", "config.json"));
-
-        public static Data LoadRules()
-        {
-            Data? data = null;
-            if (SaveFile.Exists)
-            {
-                data = JsonSerializer.Deserialize<Data>(File.ReadAllText(SaveFile.FullName, Encoding.UTF8));
-            }
-            data ??= new Data();
-
-            if (data.Rules is null)
-                data.Rules = Array.Empty<Rule>();
-
-            return data;
-        }
-
-        public static void SaveRules(Data data)
-        {
-            SaveFile.Directory?.Create();
-            var json = JsonSerializer.Serialize(data);
-            File.WriteAllText(SaveFile.FullName, json, Encoding.UTF8);
-        }
-    }
-
     public class Data
     {
         public Data()
@@ -74,5 +47,35 @@ namespace Wiltoga.Meppy
         public int Top { get; set; }
         public int Width { get; set; }
         public Win32.ShowWindowCommands WindowState { get; set; }
+    }
+
+    internal static class SaveData
+    {
+        private static FileInfo SaveFile => new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Meppy", "config.json"));
+
+        public static Data LoadRules(out bool created)
+        {
+            Data? data = null;
+            if (SaveFile.Exists)
+            {
+                data = JsonSerializer.Deserialize<Data>(File.ReadAllText(SaveFile.FullName, Encoding.UTF8));
+                created = false;
+            }
+            else
+                created = true;
+            data ??= new Data();
+
+            if (data.Rules is null)
+                data.Rules = Array.Empty<Rule>();
+
+            return data;
+        }
+
+        public static void SaveRules(Data data)
+        {
+            SaveFile.Directory?.Create();
+            var json = JsonSerializer.Serialize(data);
+            File.WriteAllText(SaveFile.FullName, json, Encoding.UTF8);
+        }
     }
 }
