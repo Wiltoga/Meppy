@@ -24,7 +24,7 @@ LicenseFile=.\LICENSE
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputDir=bin
-OutputBaseFilename=Meppy setup
+OutputBaseFilename=Meppy-setup-win-x64
 SetupIconFile=.\icon.ico
 Compression=lzma
 SolidCompression=yes
