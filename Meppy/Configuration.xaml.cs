@@ -142,6 +142,11 @@ namespace Wiltoga.Meppy
             }
         }
 
+        private void rulesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            rulesList.SelectedItem = null;
+        }
+
         private void Window_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             if (e.NewValue is true)

@@ -5,16 +5,31 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reactive.Subjects;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Xml.Linq;
 
 namespace Wiltoga.Meppy
 {
     public class ConfigurationRule
     {
+        private static Dictionary<string, ImageSource> iconsCache;
+
+        private string? filename;
+
+        private Process? process;
+
+        static ConfigurationRule()
+        {
+            iconsCache = new(StringComparer.InvariantCultureIgnoreCase);
+        }
+
         public ConfigurationRule(string name)
         {
             Name = name;
@@ -26,9 +41,66 @@ namespace Wiltoga.Meppy
         public bool Active { get; set; }
 
         public string DisplayName => FriendlyName ?? Name;
-        public string? Filename { get; set; }
+
+        public string? Filename
+        {
+            get => filename;
+            set
+            {
+                filename = value;
+                if (iconsCache.TryGetValue(filename ?? "", out var cachedIcon))
+                {
+                    Icon = cachedIcon;
+                }
+                else
+                {
+                    Icon = null;
+                }
+                if (Icon is null)
+                {
+                    if (filename is not null)
+                    {
+                        var info = new Win32.SHFILEINFO
+                        {
+                            szDisplayName = "",
+                            szTypeName = ""
+                        };
+                        int cbFileInfo = Marshal.SizeOf(info);
+                        Win32.SHGFI flags = Win32.SHGFI.SHGFI_ICON | Win32.SHGFI.SHGFI_SMALLICON | Win32.SHGFI.SHGFI_USEFILEATTRIBUTES;
+
+                        Win32.SHGetFileInfo(filename, 256, out info, (uint)cbFileInfo, flags);
+                        var icon = System.Drawing.Icon.FromHandle(info.hIcon);
+                        var stream = new MemoryStream();
+                        icon.ToBitmap().Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+                        Win32.DestroyIcon(info.hIcon);
+                        stream.Seek(0, SeekOrigin.Begin);
+                        var image = new BitmapImage();
+                        image.BeginInit();
+                        image.StreamSource = stream;
+                        image.EndInit();
+                        image.Freeze();
+                        Icon = image;
+                        iconsCache[filename] = image;
+                    }
+                }
+            }
+        }
+
+        [Reactive]
+        public ImageSource? Icon { get; private set; }
+
         public string Name { get; }
-        public Process? Process { get; set; }
+
+        public Process? Process
+        {
+            get => process;
+            set
+            {
+                process = value;
+                Filename = process?.MainModule?.FileName;
+            }
+        }
+
         public Rule? Reference { get; set; }
 
         private string? FriendlyName

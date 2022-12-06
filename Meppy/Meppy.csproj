@@ -9,6 +9,9 @@
 	  <UseWPF>true</UseWPF>
 	  <UseWindowsForms>true</UseWindowsForms>
 	  <ApplicationIcon>icon.ico</ApplicationIcon>
+	  <AssemblyVersion>1.1.0</AssemblyVersion>
+	  <FileVersion>1.1.0</FileVersion>
+	  <Version></Version>
   </PropertyGroup>
 
   <ItemGroup>

@@ -17,6 +17,20 @@
     <Window.DataContext>
         <local:ConfigurationViewModel />
     </Window.DataContext>
+    <Window.Resources>
+        <Style
+            TargetType="Image">
+            <Style.Triggers>
+                <Trigger
+                    Property="IsEnabled"
+                    Value="False">
+                    <Setter
+                        Property="Opacity"
+                        Value=".5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <DockPanel>
         <Button
             HorizontalAlignment="Right"
@@ -43,6 +57,8 @@
             </Button>
         </StackPanel>
         <DataGrid
+            Name="rulesList"
+            SelectionChanged="rulesList_SelectionChanged"
             CanUserAddRows="False"
             SelectionMode="Single"
             AlternatingRowBackground="#eee"
@@ -50,15 +66,8 @@
             AutoGenerateColumns="False"
             HeadersVisibility="Column"
             CanUserDeleteRows="False"
-            ItemsSource="{Binding Path=Rules}">
-            <DataGrid.CellStyle>
-                <Style
-                    TargetType="DataGridCell">
-                    <Setter
-                        Property="Focusable"
-                        Value="False" />
-                </Style>
-            </DataGrid.CellStyle>
+            ItemsSource="{Binding Path=Rules}"
+            SelectionUnit="FullRow">
             <DataGrid.Columns>
                 <DataGridTemplateColumn
                     Header="Active"
@@ -76,7 +85,46 @@
                 <DataGridTextColumn
                     IsReadOnly="True"
                     Header="Name"
-                    Binding="{Binding Path=DisplayName}" />
+                    Binding="{Binding Path=DisplayName}">
+                    <DataGridTextColumn.CellStyle>
+                        <Style
+                            BasedOn="{StaticResource {x:Type DataGridCell}}"
+                            TargetType="DataGridCell">
+                            <Setter
+                                Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate
+                                        TargetType="DataGridCell">
+                                        <DockPanel
+                                            Background="#01ffffff"
+                                            x:Name="panel">
+                                            <Image
+                                                VerticalAlignment="Center"
+                                                DockPanel.Dock="Left"
+                                                Stretch="None"
+                                                Margin="2,0"
+                                                Source="{Binding Path=Icon}" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Path=DisplayName}"
+                                                Margin="3,0" />
+                                        </DockPanel>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger
+                                                Property="IsSelected"
+                                                Value="True">
+                                                <Setter
+                                                    TargetName="panel"
+                                                    Property="Background"
+                                                    Value="{x:Static SystemColors.HighlightBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </DataGridTextColumn.CellStyle>
+                </DataGridTextColumn>
                 <DataGridTemplateColumn
                     IsReadOnly="True"
                     Header="Show">
