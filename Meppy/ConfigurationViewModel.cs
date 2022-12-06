@@ -35,7 +35,14 @@ namespace Wiltoga.Meppy
         {
             get
             {
-                var file = Filename ?? Process?.MainModule?.FileName;
+                string? file = null;
+                try
+                {
+                    file = Filename ?? Process?.MainModule?.FileName;
+                }
+                catch (Exception)
+                {
+                }
                 if (file is null)
                     return null;
                 var versionInfo = FileVersionInfo.GetVersionInfo(file);
@@ -51,7 +58,8 @@ namespace Wiltoga.Meppy
             CacheSource = new SourceCache<ConfigurationRule, string>(o => o.Name.ToLowerInvariant());
             CacheSource
                 .Connect()
-                .Filter(rule => rule.Process?.ProcessName != "explorer" &&
+                .Filter(rule => HasRights(rule.Process) &&
+                    AvailableWindow(rule.Process) &&
                     !string.IsNullOrWhiteSpace(rule.DisplayName))
                 .Bind(out var rules)
                 .Subscribe();
@@ -60,6 +68,7 @@ namespace Wiltoga.Meppy
         }
 
         public SourceCache<ConfigurationRule, string> CacheSource { get; }
+
         public IReadOnlyCollection<ConfigurationRule> Rules { get; set; }
 
         public void RefreshProcesses()
@@ -112,6 +121,30 @@ namespace Wiltoga.Meppy
                 }
                 rule.Active = true;
                 rule.Reference = selectedRule;
+            }
+        }
+
+        private static bool AvailableWindow(Process? proc)
+        {
+            if (proc is null)
+                return true;
+            var handle = proc.MainWindowHandle;
+            var size = new Win32.RECT();
+            Win32.GetWindowRect(handle, ref size);
+            return size.Width > 1 && size.Height > 1;
+        }
+
+        private static bool HasRights(Process? proc)
+        {
+            try
+            {
+                var filename = proc?.MainModule?.FileName;
+                return true;
+            }
+            catch (Exception)
+            {
+                // no rights to acces the process...
+                return false;
             }
         }
     }

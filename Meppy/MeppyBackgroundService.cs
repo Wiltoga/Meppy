@@ -30,17 +30,20 @@ namespace Wiltoga.Meppy
         private List<(Rule Rule, Task Task, CancellationTokenSource TokenSource)> Handles { get; }
 
         private ILogger Logger { get; }
-
         private List<RuleSet> Rules { get; }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var data = SaveData.LoadRules();
-            Rules.AddRange(data.Rules.Select(rule => new RuleSet(rule)));
 
-            foreach (var rule in Rules)
+            lock (Rules)
             {
-                processWatcher.Watch(rule.Rule.ProcessName);
+                Rules.AddRange(data.Rules.Select(rule => new RuleSet(rule)));
+
+                foreach (var rule in Rules)
+                {
+                    processWatcher.Watch(rule.Rule.ProcessName);
+                }
             }
 
             processWatcher.ProcessStarted += ProcessWatcher_ProcessStarted;
@@ -58,8 +61,27 @@ namespace Wiltoga.Meppy
             icon.Click += Icon_Click;
             icon.BalloonTipClicked += Icon_Click;
             icon.Visible = true;
-            if (!Rules.Any())
-                icon.ShowBalloonTip(10000);
+
+            lock (Rules)
+            {
+                if (!Rules.Any())
+                    icon.ShowBalloonTip(10000);
+            }
+
+            var saveTask = Task.Run(() =>
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    Thread.Sleep(1000);
+                    lock (Rules)
+                    {
+                        SaveData.SaveRules(new Data
+                        {
+                            Rules = Rules.Select(rule => rule.Rule).ToArray()
+                        });
+                    }
+                }
+            }, stoppingToken);
 
             await processWatcher.ThreadTask;
 
@@ -69,10 +91,7 @@ namespace Wiltoga.Meppy
             }
             await Task.WhenAll(Handles.Select(taskHandle => taskHandle.Task));
 
-            SaveData.SaveRules(new Data
-            {
-                Rules = Rules.Select(rule => rule.Rule).ToArray()
-            });
+            await saveTask;
 
             processWatcher.Dispose();
 
@@ -84,27 +103,38 @@ namespace Wiltoga.Meppy
         private void Icon_Click(object? sender, EventArgs e)
         {
             config ??= new Configuration();
-            config.Refresh(Rules.Select(set => set.Rule));
+            lock (Rules)
+            {
+                config.Refresh(Rules.Select(set => set.Rule));
+            }
             config.Show();
             void Config_IsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
             {
                 if (e.NewValue is false)
                 {
                     config.IsVisibleChanged -= Config_IsVisibleChanged;
-                    var toRemove = Rules.Where(ruleSet => !config.EnabledRules.Contains(ruleSet.Rule.ProcessName, StringComparer.InvariantCultureIgnoreCase));
-                    var toAdd = config.EnabledRules.Where(rule => !Rules.Any(currRuleSet => currRuleSet.Rule.ProcessName.Equals(rule, StringComparison.InvariantCultureIgnoreCase)));
-                    foreach (var item in toRemove.ToArray())
+                    lock (Rules)
                     {
-                        Rules.Remove(item);
-                        processWatcher.UnWatch(item.Rule.ProcessName);
-                    }
-                    foreach (var item in toAdd.ToArray())
-                    {
-                        processWatcher.Watch(item);
-                        Rules.Add(new RuleSet(new Rule
+                        var toRemove = Rules.Where(ruleSet => !config.EnabledRules.Contains(ruleSet.Rule.ProcessName, StringComparer.InvariantCultureIgnoreCase));
+                        var toAdd = config.EnabledRules.Where(rule => !Rules.Any(currRuleSet => currRuleSet.Rule.ProcessName.Equals(rule, StringComparison.InvariantCultureIgnoreCase)));
+                        foreach (var item in toRemove.ToArray())
                         {
-                            ProcessName = item
-                        }));
+                            Rules.Remove(item);
+                            processWatcher.UnWatch(item.Rule.ProcessName);
+                        }
+                        foreach (var item in toAdd.ToArray())
+                        {
+                            processWatcher.Watch(item);
+                            Rules.Add(new RuleSet(new Rule
+                            {
+                                ProcessName = item
+                            }));
+                        }
+                    }
+
+                    if (config.CloseApp)
+                    {
+                        Program.CancellationTokenSource.Cancel();
                     }
                 }
             }
@@ -147,7 +177,9 @@ namespace Wiltoga.Meppy
             try
             {
                 Logger.LogInformation("{ProcessName} opened", e.Process.ProcessName);
-                var ruleSet = Rules.FirstOrDefault(r => r.Rule.ProcessName == e.Process.ProcessName);
+                RuleSet? ruleSet;
+                lock (Rules)
+                    ruleSet = Rules.FirstOrDefault(r => r.Rule.ProcessName == e.Process.ProcessName);
                 var rule = ruleSet?.Rule;
                 if (rule is null)
                     return;
@@ -170,7 +202,9 @@ namespace Wiltoga.Meppy
             try
             {
                 Logger.LogInformation("{ProcessName} opened", e.Process.ProcessName);
-                var ruleSet = Rules.FirstOrDefault(r => r.Rule.ProcessName == e.Process.ProcessName);
+                RuleSet? ruleSet;
+                lock (Rules)
+                    ruleSet = Rules.FirstOrDefault(r => r.Rule.ProcessName == e.Process.ProcessName);
                 var rule = ruleSet?.Rule;
                 if (rule is null)
                     return;
@@ -204,29 +238,32 @@ namespace Wiltoga.Meppy
                 {
                     while (!cancellationTokenSource.IsCancellationRequested)
                     {
-                        var rect = new Win32.RECT();
-                        var placement = new Win32.WINDOWPLACEMENT();
-                        if (Win32.GetWindowRect(hwnd, ref rect) && Win32.GetWindowPlacement(hwnd, ref placement))
+                        lock (Rules)
                         {
-                            if (placement.showCmd == Win32.ShowWindowCommands.Normal)
-                                rule.State = new State
-                                {
-                                    Left = rect.Left,
-                                    Top = rect.Top,
-                                    Width = rect.Width,
-                                    Height = rect.Height,
-                                    WindowState = placement.showCmd
-                                };
-                            else
+                            var rect = new Win32.RECT();
+                            var placement = new Win32.WINDOWPLACEMENT();
+                            if (Win32.GetWindowRect(hwnd, ref rect) && Win32.GetWindowPlacement(hwnd, ref placement))
                             {
-                                var currentScreen = Screen.FromHandle(hwnd);
-                                rule.State ??= new State();
-                                rule.State.Left = currentScreen.WorkingArea.Left + currentScreen.WorkingArea.Width / 2 - rule.State.Width / 2;
-                                rule.State.Top = currentScreen.WorkingArea.Top + currentScreen.WorkingArea.Height / 2 - rule.State.Height / 2;
-                                rule.State.WindowState = placement.showCmd;
+                                if (placement.showCmd == Win32.ShowWindowCommands.Normal)
+                                    rule.State = new State
+                                    {
+                                        Left = rect.Left,
+                                        Top = rect.Top,
+                                        Width = rect.Width,
+                                        Height = rect.Height,
+                                        WindowState = placement.showCmd
+                                    };
+                                else
+                                {
+                                    var currentScreen = Screen.FromHandle(hwnd);
+                                    rule.State ??= new State();
+                                    rule.State.Left = currentScreen.WorkingArea.Left + currentScreen.WorkingArea.Width / 2 - rule.State.Width / 2;
+                                    rule.State.Top = currentScreen.WorkingArea.Top + currentScreen.WorkingArea.Height / 2 - rule.State.Height / 2;
+                                    rule.State.WindowState = placement.showCmd;
+                                }
                             }
                         }
-                        Thread.Sleep(200);
+                        Thread.Sleep(500);
                     }
                 }, cancellationTokenSource.Token), cancellationTokenSource);
                 Handles.Add(taskHandle.Value);
@@ -245,10 +282,14 @@ namespace Wiltoga.Meppy
             handle.TokenSource.Cancel();
             Logger.LogInformation("{ProcessName} closed", handle.Rule.ProcessName);
             Handles.Remove(handle);
-            var ruleSet = Rules.FirstOrDefault(rule => handle.Rule == rule.Rule);
-            if (ruleSet is null)
-                return;
-            ruleSet.InitialState = ruleSet.Rule.State;
+            RuleSet? ruleSet;
+            lock (Rules)
+            {
+                ruleSet = Rules.FirstOrDefault(rule => handle.Rule == rule.Rule);
+                if (ruleSet is null)
+                    return;
+                ruleSet.InitialState = ruleSet.Rule.State;
+            }
         }
 
         private class RuleSet

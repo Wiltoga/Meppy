@@ -31,8 +31,10 @@ namespace Wiltoga.Meppy
         {
             InitializeComponent();
             EnabledRules = Array.Empty<string>();
+            CloseApp = false;
         }
 
+        public bool CloseApp { get; private set; }
         public string[] EnabledRules { get; private set; }
         private ConfigurationViewModel ViewModel => (ConfigurationViewModel)DataContext;
 
@@ -67,11 +69,10 @@ namespace Wiltoga.Meppy
             }
         }
 
-        private async void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            CloseApp = true;
             Close();
-            await Task.Delay(TimeSpan.FromSeconds(3));
-            Program.CancellationTokenSource.Cancel();
         }
 
         private async void EyeButton_Click(object sender, RoutedEventArgs e)
