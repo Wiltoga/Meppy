@@ -10,7 +10,7 @@ The software is configurable through an interface, available in the system tray 
 
 ![image](https://user-images.githubusercontent.com/30344403/205997834-8ca77251-a377-40aa-82fc-194ca38b7e87.png)
 
-![image](https://user-images.githubusercontent.com/30344403/205995698-bb385740-0635-4b8b-a496-e706c001bec8.png)
+![image](https://user-images.githubusercontent.com/30344403/206009664-32710eb2-423e-426e-8de9-638daaadba11.png)
 
 You can quickly set which active window to target, or add a new process by specifying an exe file.
 
