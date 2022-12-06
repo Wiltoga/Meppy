@@ -108,6 +108,7 @@ namespace Wiltoga.Meppy
                 config.Refresh(Rules.Select(set => set.Rule));
             }
             config.Show();
+            config.Activate();
             void Config_IsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
             {
                 if (e.NewValue is false)
