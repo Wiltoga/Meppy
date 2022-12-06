@@ -53,16 +53,13 @@ namespace Wiltoga.Meppy
     {
         private static FileInfo SaveFile => new FileInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Meppy", "config.json"));
 
-        public static Data LoadRules(out bool created)
+        public static Data LoadRules()
         {
             Data? data = null;
             if (SaveFile.Exists)
             {
                 data = JsonSerializer.Deserialize<Data>(File.ReadAllText(SaveFile.FullName, Encoding.UTF8));
-                created = false;
             }
-            else
-                created = true;
             data ??= new Data();
 
             if (data.Rules is null)

@@ -17,15 +17,17 @@ namespace Wiltoga.Meppy
     internal class MeppyBackgroundService : BackgroundService
     {
         private Configuration? config;
+        private ProcessWatcher processWatcher;
 
         public MeppyBackgroundService(ILogger<MeppyBackgroundService> logger)
         {
             Logger = logger;
             Rules = new();
             Handles = new List<(Rule, Task, CancellationTokenSource)>();
+            processWatcher = new ProcessWatcher();
         }
 
-        private List<(Task Task, CancellationTokenSource TokenSource)> Handles { get; }
+        private List<(Rule Rule, Task Task, CancellationTokenSource TokenSource)> Handles { get; }
 
         private ILogger Logger { get; }
 
@@ -34,9 +36,7 @@ namespace Wiltoga.Meppy
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var data = SaveData.LoadRules();
-            Rules.AddRange(data.Rules.Select(rule => new RuleSet(rule, rule.State?.Copy)));
-
-            var processWatcher = new ProcessWatcher();
+            Rules.AddRange(data.Rules.Select(rule => new RuleSet(rule)));
 
             foreach (var rule in Rules)
             {
@@ -48,6 +48,18 @@ namespace Wiltoga.Meppy
             processWatcher.ProcessStopped += ProcessWatcher_ProcessStopped;
 
             processWatcher.Start(stoppingToken);
+
+            var icon = new NotifyIcon
+            {
+                Icon = Properties.Resources.icon,
+                Text = "Meppy",
+                BalloonTipText = "Configure Meppy here !"
+            };
+            icon.Click += Icon_Click;
+            icon.BalloonTipClicked += Icon_Click;
+            icon.Visible = true;
+            if (!Rules.Any())
+                icon.ShowBalloonTip(10000);
 
             await processWatcher.ThreadTask;
 
@@ -72,25 +84,27 @@ namespace Wiltoga.Meppy
         private void Icon_Click(object? sender, EventArgs e)
         {
             config ??= new Configuration();
-            config.Refresh(Rules);
+            config.Refresh(Rules.Select(set => set.Rule));
             config.Show();
             void Config_IsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
             {
                 if (e.NewValue is false)
                 {
                     config.IsVisibleChanged -= Config_IsVisibleChanged;
-                    var toRemove = Rules.Where(rule => !config.EnabledRules.Contains(rule.ProcessName, StringComparer.InvariantCultureIgnoreCase));
-                    var toAdd = config.EnabledRules.Where(rule => !Rules.Any(currRule => currRule.ProcessName.Equals(rule, StringComparison.InvariantCultureIgnoreCase)));
+                    var toRemove = Rules.Where(ruleSet => !config.EnabledRules.Contains(ruleSet.Rule.ProcessName, StringComparer.InvariantCultureIgnoreCase));
+                    var toAdd = config.EnabledRules.Where(rule => !Rules.Any(currRuleSet => currRuleSet.Rule.ProcessName.Equals(rule, StringComparison.InvariantCultureIgnoreCase)));
                     foreach (var item in toRemove.ToArray())
                     {
                         Rules.Remove(item);
+                        processWatcher.UnWatch(item.Rule.ProcessName);
                     }
                     foreach (var item in toAdd.ToArray())
                     {
-                        Rules.Add(new Rule
+                        processWatcher.Watch(item);
+                        Rules.Add(new RuleSet(new Rule
                         {
                             ProcessName = item
-                        });
+                        }));
                     }
                 }
             }
@@ -172,7 +186,7 @@ namespace Wiltoga.Meppy
 
                 var element = AutomationElement.FromHandle(hwnd);
 
-                (Task, CancellationTokenSource)? taskHandle = null;
+                (Rule Rule, Task Task, CancellationTokenSource TokenSource)? taskHandle = null;
 
                 void closedHandler(object sender, EventArgs e2)
                 {
@@ -180,13 +194,13 @@ namespace Wiltoga.Meppy
                     Logger.LogInformation("{ProcessName} closed", rule.ProcessName);
                     Automation.RemoveAutomationEventHandler(WindowPattern.WindowClosedEvent, element, closedHandler);
                     if (taskHandle is not null)
-                        Handles.Remove(taskHandle.Value);
+                        Handles.RemoveAt(Handles.FindIndex(handle => handle.Task == taskHandle.Value.Task));
                 }
 
                 Automation.AddAutomationEventHandler(
                     WindowPattern.WindowClosedEvent, element,
                     TreeScope.Subtree, closedHandler);
-                taskHandle = (Task.Run(() =>
+                taskHandle = (rule, Task.Run(() =>
                 {
                     while (!cancellationTokenSource.IsCancellationRequested)
                     {
@@ -239,10 +253,10 @@ namespace Wiltoga.Meppy
 
         private class RuleSet
         {
-            public RuleSet(Rule rule, State? initialState)
+            public RuleSet(Rule rule)
             {
                 Rule = rule;
-                InitialState = initialState;
+                InitialState = rule.State?.Copy;
             }
 
             public State? InitialState { get; set; }

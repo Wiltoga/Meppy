@@ -24,6 +24,7 @@ namespace Wiltoga.Meppy
     /// </summary>
     public partial class Configuration : Window
     {
+        private Outliner? outliner;
         private CancellationTokenSource? popupCancellation;
 
         public Configuration()
@@ -41,6 +42,7 @@ namespace Wiltoga.Meppy
         {
             e.Cancel = true;
             EnabledRules = ViewModel.Rules.Where(rule => rule.Active).Select(rule => rule.Name).ToArray();
+            outliner?.Hide();
             Hide();
         }
 
@@ -56,13 +58,20 @@ namespace Wiltoga.Meppy
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 ViewModel.CacheSource.AddOrUpdate(dialog.FileNames
-                    .Select(file => Path.GetFileNameWithoutExtension(file))
-                    .Where(file => !ViewModel.CacheSource.Lookup(file).HasValue)
-                    .Select(file => new ConfigurationRule(file)
+                    .Where(file => !ViewModel.CacheSource.Lookup(Path.GetFileNameWithoutExtension(file)).HasValue)
+                    .Select(file => new ConfigurationRule(Path.GetFileNameWithoutExtension(file))
                     {
-                        Active = true
+                        Active = true,
+                        Filename = file
                     }));
             }
+        }
+
+        private async void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            Program.CancellationTokenSource.Cancel();
         }
 
         private async void EyeButton_Click(object sender, RoutedEventArgs e)
@@ -111,22 +120,25 @@ namespace Wiltoga.Meppy
             }
             else
                 return;
-            popup.HorizontalOffset = position.Left;
-            popup.VerticalOffset = position.Top;
-            popup.Width = position.Width;
-            popup.Height = position.Height;
-            popup.IsOpen = true;
-            popupCancellation = new CancellationTokenSource();
+            outliner ??= new Outliner();
+
+            outliner.Left = position.Left;
+            outliner.Top = position.Top;
+            outliner.Width = position.Width;
+            outliner.Height = position.Height;
+            if (rule.Process is not null && rule.Process.MainWindowHandle != IntPtr.Zero)
+                Win32.SetForegroundWindow(rule.Process.MainWindowHandle);
+            outliner.Show();
+            outliner.Activate(); popupCancellation = new CancellationTokenSource();
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), popupCancellation.Token);
+                outliner.Hide();
+                popupCancellation = null;
             }
             catch (TaskCanceledException)
             {
-                return;
             }
-            popup.IsOpen = false;
-            popupCancellation = null;
         }
 
         private void Window_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)

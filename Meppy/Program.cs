@@ -11,8 +11,7 @@ namespace Wiltoga.Meppy
     internal class Program
     {
 #pragma warning disable CS8618
-        public static ApplicationContext Context { get; private set; }
-        private static CancellationTokenSource CancellationTokenSource { get; set; }
+        public static CancellationTokenSource CancellationTokenSource { get; set; }
 #pragma warning restore CS8618
 
         [STAThread]
@@ -22,8 +21,6 @@ namespace Wiltoga.Meppy
             if (!createdMutex)
                 return;
             CancellationTokenSource = new CancellationTokenSource();
-            Context = new ApplicationContext();
-            Context.ThreadExit += (sender, e) => CancellationTokenSource.Cancel();
 
             using IHost host = Host.CreateDefaultBuilder(args)
                 .UseWindowsService(options =>
@@ -46,7 +43,7 @@ namespace Wiltoga.Meppy
 
             var hostTask = host.RunAsync(CancellationTokenSource.Token);
 
-            Application.Run(Context);
+            Application.Run();
 
             mutex.Dispose();
         }

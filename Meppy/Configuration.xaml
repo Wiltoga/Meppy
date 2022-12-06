@@ -9,24 +9,23 @@
         UseLayoutRounding="True"
         Icon="/icon.ico"
         Height="400"
-        Width="300"
         MinHeight="200"
         MinWidth="200"
+        WindowStartupLocation="CenterScreen"
+        SizeToContent="Width"
         IsVisibleChanged="Window_IsVisibleChanged">
     <Window.DataContext>
         <local:ConfigurationViewModel />
     </Window.DataContext>
     <DockPanel>
-        <Popup
-            x:Name="popup"
-            Placement="Absolute"
-            AllowsTransparency="True"
-            PopupAnimation="Fade">
-            <Border
-                IsHitTestVisible="False"
-                BorderBrush="Red"
-                BorderThickness="5" />
-        </Popup>
+        <Button
+            HorizontalAlignment="Right"
+            DockPanel.Dock="Bottom"
+            Margin="5"
+            Padding="5,2"
+            Click="CloseButton_Click">
+            Close Meppy
+        </Button>
         <StackPanel
             Orientation="Horizontal"
             DockPanel.Dock="Top">
@@ -77,7 +76,7 @@
                 <DataGridTextColumn
                     IsReadOnly="True"
                     Header="Name"
-                    Binding="{Binding Path=Name}" />
+                    Binding="{Binding Path=DisplayName}" />
                 <DataGridTemplateColumn
                     IsReadOnly="True"
                     Header="Show">
@@ -86,6 +85,26 @@
                             DataType="{x:Type local:ConfigurationRule}">
                             <Button
                                 Click="EyeButton_Click">
+                                <Button.Style>
+                                    <Style
+                                        TargetType="Button">
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition
+                                                        Binding="{Binding Path=Process}"
+                                                        Value="{x:Null}" />
+                                                    <Condition
+                                                        Binding="{Binding Path=Reference.State, FallbackValue={x:Null}}"
+                                                        Value="{x:Null}" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter
+                                                    Property="IsEnabled"
+                                                    Value="False" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <Image
                                     Stretch="None"
                                     Source="/eye.png" />
