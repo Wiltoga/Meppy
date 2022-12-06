@@ -73,10 +73,15 @@ namespace Wiltoga.Meppy
 
         public void RefreshProcesses()
         {
+            var rulesToRemove = new List<ConfigurationRule>();
             foreach (var rule in CacheSource.Items)
             {
+                if (rule.Process?.HasExited is true && !rule.Active)
+                    rulesToRemove.Add(rule);
                 rule.Process?.Dispose();
+                rule.Process = null;
             }
+            CacheSource.Remove(rulesToRemove);
             var processes = Process.GetProcesses()
                 .Where(process =>
                 {
