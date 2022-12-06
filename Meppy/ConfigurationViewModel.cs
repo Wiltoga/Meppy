@@ -46,7 +46,7 @@ namespace Wiltoga.Meppy
                 if (file is null)
                     return null;
                 var versionInfo = FileVersionInfo.GetVersionInfo(file);
-                return versionInfo.FileDescription ?? null;
+                return versionInfo.ProductName ?? null;
             }
         }
     }
