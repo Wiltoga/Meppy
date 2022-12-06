@@ -20,4 +20,4 @@ You can also click on the ![eye icon](Meppy/eye.png) button to display a red rec
 
 ## Download
 
-Either download the release from [here](releases/latest), or download the sources and build the app.
+Either download the release from [here](https://github.com/Wiltoga/Meppy/releases/latest), or download the sources and build the app.
